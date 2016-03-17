@@ -1,29 +1,8 @@
-/*
- * pcsensor.c by Juan Carlos Perez (c) 2011 (cray@isp-sl.com)
- * based on Temper.c by Robert Kavaler (c) 2009 (relavak.com)
- * All rights reserved.
- *
- * Temper driver for linux. This program can be compiled either as a library
- * or as a standalone program (-DUNIT_TEST). The driver will work with some
- * TEMPer usb devices from RDing (www.PCsensor.com).
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *
- * THIS SOFTWARE IS PROVIDED BY Juan Carlos Perez ''AS IS'' AND ANY
- * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL Robert kavaler BE LIABLE FOR ANY
- * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
- * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- */
+#include <stdlib.h>
+#include "ros/ros.h"
+#include <std_msgs/Float32.h>
+
+using namespace std;
 
 
 
@@ -44,6 +23,9 @@
 
 #define INTERFACE1 0x00
 #define INTERFACE2 0x01
+
+ros::NodeHandle *n;
+ros::Publisher temperature;
 
 const static int reqIntLen=8;
 const static int reqBulkLen=8;
@@ -339,163 +321,170 @@ void ex_program(int sig) {
       (void) signal(SIGINT, SIG_DFL);
 }
 
-int main( int argc, char **argv) {
+int main( int argc, char **argv) 
+{
 
-     usb_dev_handle *lvr_winusb = NULL;
-     float tempc;
-     float tempc_measure_offset = 0.0;
-     int c;
-     struct tm *local;
-     time_t t;
+	ros::init(argc, argv, "measureTemperature");
+	n = new ros::NodeHandle();
+	temperature = n->advertise<std_msgs::Float32>("/temperature", 1000);
+	usb_dev_handle *lvr_winusb = NULL;
+	float tempc;
+	float tempc_measure_offset = 0.0;
+	int c;
+	struct tm *local;
+	time_t t;
 
-     while ((c = getopt (argc, argv, "mnfcvhls::")) != -1)
-     switch (c)
-       {
-       case 'v':
-         debug = 1;
-         break;
-       case 'c':
-         formato=1; //Celsius
-         break;
-       case 'f':
-         formato=2; //Fahrenheit
-         break;
-       case 's':
-         if (!sscanf(optarg,"%f",&tempc_measure_offset)==1) {
-           fprintf (stderr, "Error: '%s' is not (float) numeric.\n", optarg);
-           exit(EXIT_FAILURE);
-         }
-         if (tempc_measure_offset > 100000 || tempc_measure_offset < -100000) {
-           fprintf (stderr, "Error: please provide a reasonable offset\n");
-           exit(EXIT_FAILURE);
-         }
-       case 'n':
-         formato=3;
-         break;
-       case 'm':
-         mrtg=1;
-         break;
-       case 'l':
-         if (optarg!=NULL){
-           if (!sscanf(optarg,"%i",&seconds)==1) {
-             fprintf (stderr, "Error: '%s' is not numeric.\n", optarg);
-             exit(EXIT_FAILURE);
-           } else {
-              bsalir = 0;
-              break;
-           }
-         } else {
-           bsalir = 0;
-           seconds = 5;
-           break;
-         }
-       case '?':
-       case 'h':
-         printf("pcsensor version %s\n",VERSION);
-	 printf("      Aviable options:\n");
-	 printf("          -h help\n");
-	 printf("          -v verbose\n");
-	 printf("          -l[n] loop every 'n' seconds, default value is 5s\n");
-	 printf("          -s<f> substract 'f' °C (float) from measured temperature\n");
-	 printf("          -c output only in Celsius\n");
-	 printf("          -f output only in Fahrenheit\n");
-	 printf("          -m output for mrtg integration\n");
-	 printf("          -n only display value in Celsius for Nagios\n");
+	while ((c = getopt (argc, argv, "mnfcvhls::")) != -1)
+		switch (c)
+		{
+			case 'v':
+				debug = 1;
+				break;
+			case 'c':
+				formato=1; //Celsius
+				break;
+			case 'f':
+				formato=2; //Fahrenheit
+				break;
+			case 's':
+				if (!sscanf(optarg,"%f",&tempc_measure_offset)==1) {
+					fprintf (stderr, "Error: '%s' is not (float) numeric.\n", optarg);
+					exit(EXIT_FAILURE);
+				}
+				if (tempc_measure_offset > 100000 || tempc_measure_offset < -100000) {
+					fprintf (stderr, "Error: please provide a reasonable offset\n");
+					exit(EXIT_FAILURE);
+				}
+			case 'n':
+				formato=3;
+				break;
+			case 'm':
+				mrtg=1;
+				break;
+			case 'l':
+				if (optarg!=NULL){
+					if (!sscanf(optarg,"%i",&seconds)==1) {
+						fprintf (stderr, "Error: '%s' is not numeric.\n", optarg);
+						exit(EXIT_FAILURE);
+					} else {
+						bsalir = 0;
+						break;
+					}
+				} else {
+					bsalir = 0;
+					seconds = 5;
+					break;
+				}
+			case '?':
+			case 'h':
+				printf("pcsensor version %s\n",VERSION);
+				printf("      Aviable options:\n");
+				printf("          -h help\n");
+				printf("          -v verbose\n");
+				printf("          -l[n] loop every 'n' seconds, default value is 5s\n");
+				printf("          -s<f> substract 'f' °C (float) from measured temperature\n");
+				printf("          -c output only in Celsius\n");
+				printf("          -f output only in Fahrenheit\n");
+				printf("          -m output for mrtg integration\n");
+				printf("          -n only display value in Celsius for Nagios\n");
 
-	 exit(EXIT_FAILURE);
-       default:
-         if (isprint (optopt))
-           fprintf (stderr, "Unknown option `-%c'.\n", optopt);
-         else
-           fprintf (stderr,
-                    "Unknown option character `\\x%x'.\n",
-                    optopt);
-         exit(EXIT_FAILURE);
-       }
+				exit(EXIT_FAILURE);
+			default:
+				if (isprint (optopt))
+					fprintf (stderr, "Unknown option `-%c'.\n", optopt);
+				else
+					fprintf (stderr,
+							"Unknown option character `\\x%x'.\n",
+							optopt);
+				exit(EXIT_FAILURE);
+		}
 
-     if (optind < argc) {
-        fprintf(stderr, "Non-option ARGV-elements, try -h for help.\n");
-        exit(EXIT_FAILURE);
-     }
+	if (optind < argc) {
+		fprintf(stderr, "Non-option ARGV-elements, try -h for help.\n");
+		exit(EXIT_FAILURE);
+	}
 
-     if ((lvr_winusb = setup_libusb_access()) == NULL) {
-         exit(EXIT_FAILURE);
-     }
+	if ((lvr_winusb = setup_libusb_access()) == NULL) {
+		exit(EXIT_FAILURE);
+	}
 
-     (void) signal(SIGINT, ex_program);
+	(void) signal(SIGINT, ex_program);
 
-     ini_control_transfer(lvr_winusb);
+	ini_control_transfer(lvr_winusb);
 
-     control_transfer(lvr_winusb, uTemperatura );
-     interrupt_read(lvr_winusb);
+	control_transfer(lvr_winusb, uTemperatura );
+	interrupt_read(lvr_winusb);
 
-     control_transfer(lvr_winusb, uIni1 );
-     interrupt_read(lvr_winusb);
+	control_transfer(lvr_winusb, uIni1 );
+	interrupt_read(lvr_winusb);
 
-     control_transfer(lvr_winusb, uIni2 );
-     interrupt_read(lvr_winusb);
-     interrupt_read(lvr_winusb);
+	control_transfer(lvr_winusb, uIni2 );
+	interrupt_read(lvr_winusb);
+	interrupt_read(lvr_winusb);
 
 
 
-     do {
-           control_transfer(lvr_winusb, uTemperatura );
-           interrupt_read_temperatura(lvr_winusb, &tempc);
-           tempc = tempc - tempc_measure_offset;
+	while (ros::ok()){
+		control_transfer(lvr_winusb, uTemperatura );
+		interrupt_read_temperatura(lvr_winusb, &tempc);
+		tempc = tempc - tempc_measure_offset;
 
-           t = time(NULL);
-           local = localtime(&t);
+		t = time(NULL);
+		local = localtime(&t);
 
-           if (mrtg) {
-              if (formato==2) {
-                  printf("%.2f\n", (9.0 / 5.0 * tempc + 32.0));
-                  printf("%.2f\n", (9.0 / 5.0 * tempc + 32.0));
-              } else {
-                  printf("%.2f\n", tempc);
-                  printf("%.2f\n", tempc);
-              }
+		if (mrtg) {
+			if (formato==2) {
+				printf("%.2f\n", (9.0 / 5.0 * tempc + 32.0));
+				printf("%.2f\n", (9.0 / 5.0 * tempc + 32.0));
+			} else {
+				printf("%.2f\n", tempc);
+				printf("%.2f\n", tempc);
+			}
 
-              printf("%02d:%02d\n",
-                          local->tm_hour,
-                          local->tm_min);
+			printf("%02d:%02d\n",
+					local->tm_hour,
+					local->tm_min);
 
-              printf("pcsensor\n");
-           } else {
+			printf("pcsensor\n");
+		} else {
 
-            if (formato != 3) {
+			if (formato != 3) {
 
-              printf("%04d/%02d/%02d %02d:%02d:%02d ",
-                          local->tm_year +1900,
-                          local->tm_mon + 1,
-                          local->tm_mday,
-                          local->tm_hour,
-                          local->tm_min,
-                          local->tm_sec);
+				printf("%04d/%02d/%02d %02d:%02d:%02d ",
+						local->tm_year +1900,
+						local->tm_mon + 1,
+						local->tm_mday,
+						local->tm_hour,
+						local->tm_min,
+						local->tm_sec);
 
-            }
+			}
 
-              if (formato==3) {
-                  // for Nagios
-                  printf("%.2f\n", tempc);
-              }
-              else if (formato==2) {
-                  printf("Temperature %.2fF\n", (9.0 / 5.0 * tempc + 32.0));
-              } else if (formato==1) {
-                  printf("Temperature %.2fC\n", tempc);
-              } else {
-                  printf("Temperature %.2fF %.2fC\n", (9.0 / 5.0 * tempc + 32.0), tempc);
-              }
-              fflush(stdout);
-           }
+			if (formato==3) {
+				// for Nagios
+				printf("%.2f\n", tempc);
+			}
+			else if (formato==2) {
+				printf("Temperature %.2fF\n", (9.0 / 5.0 * tempc + 32.0));
+			} else if (formato==1) {
+				printf("Temperature %.2fC\n", tempc);
+			} else {
+				printf("Temperature %.2fF %.2fC\n", (9.0 / 5.0 * tempc + 32.0), tempc);
+			}
+			fflush(stdout);
+		}
+		ros::spinOnce();
+		sleep(1);
+		if (!bsalir) sleep(seconds);
+	} while (!bsalir);
 
-           if (!bsalir)
-              sleep(seconds);
-     } while (!bsalir);
+	usb_release_interface(lvr_winusb, INTERFACE1);
+	usb_release_interface(lvr_winusb, INTERFACE2);
 
-     usb_release_interface(lvr_winusb, INTERFACE1);
-     usb_release_interface(lvr_winusb, INTERFACE2);
+	usb_close(lvr_winusb);
+	ros::shutdown();
+	delete n;
 
-     usb_close(lvr_winusb);
-
-     return 0;
+	return 0;
 }
+
