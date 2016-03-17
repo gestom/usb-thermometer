@@ -473,6 +473,9 @@ int main( int argc, char **argv)
 			}
 			fflush(stdout);
 		}
+		std_msgs::Float32 out;
+		out.data = tempc; 
+		temperature.publish(out);
 		ros::spinOnce();
 		sleep(1);
 		if (!bsalir) sleep(seconds);
